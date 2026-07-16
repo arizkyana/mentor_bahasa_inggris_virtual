@@ -10,4 +10,5 @@ dependencies = [
     "pydantic>=2.13.4",
     "python-dotenv>=1.2.2",
     "supabase>=2.31.0",
+    "telegramify-markdown>=1.2.0",
 ]
