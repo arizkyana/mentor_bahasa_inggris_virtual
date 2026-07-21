@@ -19,4 +19,4 @@ def load_instruction(name: str):
     return path.read_text(encoding="utf-8")
 
 
-# Saat memanggil function load_instruction("agent-lead"), kenapa tidak perlu menulis ".md", misal: agent-lead.md?
+load_instruction("agent-skill___")
