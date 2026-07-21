@@ -1,5 +1,7 @@
 import src.core.supabase as supabase
 
+from supabase import PostgrestAPIResponse
+
 from typing import Literal
 from loguru import logger
 
@@ -15,7 +17,7 @@ class ChatRepository:
             {"user_id": user_id, "role": role, "message_text": message_text}
         ).execute()
 
-    def load_history_by_user_id(self, user_id: int):
+    def load_history_by_user_id(self, user_id: int) -> PostgrestAPIResponse:
         result = (
             self.supabase.table("chat_histories")
             .select("role", "message_text")
