@@ -7,6 +7,8 @@ import src.core.artifacts as artifacts
 from src.repository.chat_repository import ChatRepository
 from google.genai import types
 
+from loguru import logger
+
 
 class LeadAgent:
     def __init__(self):
@@ -16,7 +18,7 @@ class LeadAgent:
         # agents
         self.tools = [
             services.skill_type_classification,
-            services.evaluate_writing,
+            # services.evaluate_writing,
             services.get_learning_tip,
         ]
 

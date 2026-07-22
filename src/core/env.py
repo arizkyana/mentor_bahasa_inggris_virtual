@@ -5,6 +5,7 @@ load_dotenv()
 import os
 
 from pathlib import Path
+from loguru import logger
 
 SRC_DIR = Path(__file__).resolve().parent.parent  # ../src
 INSTRUCTIONS_DIR = SRC_DIR / "agents" / "instructions"
@@ -19,6 +20,8 @@ def _required_env(name: str) -> str:
 
     if not value:
         raise RuntimeError(f"env variabel `{name}` belum di-set")
+
+    return value
 
 
 GEMINI_API_KEY = _required_env("GEMINI_API_KEY")
