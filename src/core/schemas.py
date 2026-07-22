@@ -44,4 +44,12 @@ class LearningReportSchema(BaseModel):  # laporan belajar
     )
 
 
-# 1. Apa masalah utama dari jawaban LLM yang berupa teks bebas? dan bagaimana structured output menjadi solusinya?
+class EvaluateSpeakingSchema(BaseModel):
+    correction: str = Field(
+        ..., description="catatan perbaikan pengucapan bahasa inggris untuk peserta"
+    )
+    score: str = Field(
+        ...,
+        description="rentang nilai dari 1 - 10 untuk pengucapan bahasa inggris dari peserta",
+    )
+    summary: str = Field(..., description="gabungan antara correction dan score")
