@@ -1,7 +1,6 @@
 import src.core.env as env
 
 from functools import lru_cache
-from supabase import Client, create_client
 
 
 @lru_cache
@@ -17,6 +16,3 @@ def load_instruction(name: str):
         )  # agent-lead, agent-led
 
     return path.read_text(encoding="utf-8")
-
-
-load_instruction("agent-skill___")
