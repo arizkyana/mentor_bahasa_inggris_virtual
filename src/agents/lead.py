@@ -4,8 +4,11 @@ import src.agents.services as services  # kita akan melengkapi pada materi berik
 import src.core.prompts as prompts
 import src.core.artifacts as artifacts
 
+
 from src.repository.chat_repository import ChatRepository
 from google.genai import types
+
+from loguru import logger
 
 
 class LeadAgent:
@@ -72,13 +75,11 @@ class LeadAgent:
             role="model", user_id=user_id, message_text=answer
         )
 
-        collected_artifacts = self.chat_repository.get_last_artifact_by_user_id(
-            user_id=user_id
-        )
-
-        return {"text": answer, "artifacts": collected_artifacts}
+        return {"text": answer, "artifacts": artifacts_data}
 
     def handle_send_voice(self, user_id: int, voice_file_path: str):
+        logger.info("[handle_send_voice]")
+
         self.chat_repository.save_message(
             user_id=user_id, role="user", message_text="[voice note]"
         )
@@ -91,9 +92,12 @@ class LeadAgent:
             user_id=user_id, role="model", message_text=evaluation_speaking_result
         )
 
+        logger.info("success evaluate speaking")
+
         return evaluation_speaking_result
 
     def handle_repot(self, user_id: int, username: str, start_date: str, end_date: str):
+        logger.info("[handle_report]")
         self.chat_repository.save_message(
             user_id=user_id,
             role="user",
