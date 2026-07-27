@@ -29,6 +29,8 @@ timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 def generate_exercise(
     text: str, skill_types: Literal["reading", "speaking", "listening", "writing"]
 ):
+    logger.info(f"tools: generate_exercise - {skill_types}")
+
     match skill_types:
         case "writing":
             return writing_exercise(text=text)
@@ -53,6 +55,8 @@ def writing_exercise(text: str):
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
 
+    logger.info("success generate writing exercise")
+
     return response.text
 
 
@@ -69,6 +73,8 @@ def speaking_exercise(text: str):
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
 
+    logger.info("success generate listening exercise")
+
     return response.text
 
 
@@ -84,6 +90,8 @@ def reading_exercise(text: str):
         contents=prompt,
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
+
+    logger.info("success generate reading exercise")
 
     return response.text
 
@@ -195,6 +203,8 @@ def listening_exercise(text: str):
         f"- {question}" for question in generate_script.questions
     )
 
+    logger.info("success generate listening exercise")
+
     return (
         "Audio latihan listening sudah berhasil dibuat dan terlampir otomatis"
         f"Pertanyaan: {questions_text}"
@@ -203,6 +213,8 @@ def listening_exercise(text: str):
 
 def skill_type_classification(text: str):  # prompt dari user
     """Menentukan kebutuhan latihan yang tepat berdasarkan pesan yang disampaikan oleh peserta"""
+
+    logger.info("tools: skill_type_classification")
 
     model = env.GEMINI_MODEL
     system_instruction = prompts.load_instruction("agent-skill-type-classifier")
@@ -319,7 +331,3 @@ def generate_report(
     pdf.save(report_file_path)
 
     return str(report_file_path)
-
-
-# 1. apa maksud dari properti temperature?
-# 2. kenapa proses upload file audio perlu di periksa status PROCESSING nya?

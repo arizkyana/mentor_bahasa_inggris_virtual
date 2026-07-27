@@ -21,5 +21,11 @@ def run():
             break
 
         response = lead_agent.handle_send_message(user_id=101010, message_text=prompt)
+        logger.debug(response)
 
-        logger.success(f"[AI]: {response["text"]}")
+        print(f"[AI]: {response["text"]}")
+
+        if response["artifacts"]:
+            artifacts_data = response["artifacts"].data
+            for item in artifacts_data:
+                logger.info(f"lokasi artifact: {item["artifact"]}")
