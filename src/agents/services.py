@@ -73,7 +73,7 @@ def speaking_exercise(text: str):
         config=types.GenerateContentConfig(system_instruction=system_instruction),
     )
 
-    logger.info("success generate listening exercise")
+    logger.info("success generate speaking exercise")
 
     return response.text
 

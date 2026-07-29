@@ -38,8 +38,10 @@ class ChatRepository:
             logger.debug(f"user {user_id} sudah terdaftar")
             return  # berhenti
 
-        result = self.supabase.table("chat_users").insert(
-            {"user_id": user_id, "username": username, "chat_id": chat_id}
+        result = (
+            self.supabase.table("chat_users")
+            .insert({"user_id": user_id, "username": username, "chat_id": chat_id})
+            .execute()
         )
 
         return result
@@ -66,3 +68,6 @@ class ChatRepository:
         )
 
         return result
+
+    def get_users(self):
+        return self.supabase.table("chat_users").select("user_id").execute()

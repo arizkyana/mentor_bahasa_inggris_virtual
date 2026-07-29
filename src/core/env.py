@@ -10,6 +10,7 @@ SRC_DIR = Path(__file__).resolve().parent.parent  # ../src
 INSTRUCTIONS_DIR = SRC_DIR / "agents" / "instructions"
 DOCS_DIR = SRC_DIR / "docs"
 OUTPUT_DIR = SRC_DIR / "output"
+TEMP = SRC_DIR / "temp"
 
 
 def _required_env(name: str) -> str:
