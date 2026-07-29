@@ -3,22 +3,22 @@ import src.core.env as env
 import os
 import random
 
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo  # WIB - Asia/Jakarta
 
 from telegram import Update
 from telegram.error import BadRequest
 from telegram.ext import (
     ContextTypes,
     Application,
-    CommandHandler,
-    MessageHandler,
+    CommandHandler,  # /start /report
+    MessageHandler,  # text atau suara (voice note)
     Defaults,
     filters,
 )
 
-from telegram.constants import ParseMode
+from telegram.constants import ParseMode  # MarkdownV2
 from loguru import logger
-from datetime import time, date, timedelta
+from datetime import time, date, timedelta  # generate - per 1 minggu / 7 hari
 
 from src.agents.lead import LeadAgent
 from src.repository.chat_repository import ChatRepository
@@ -30,11 +30,8 @@ timezone = ZoneInfo("Asia/Jakarta")
 chat_repository = ChatRepository()
 lead_agent = LeadAgent()
 
-# python-telegram-bot configs
-bot_config = Defaults(
-    parse_mode=ParseMode.MARKDOWN_V2,
-    tzinfo=timezone,
-)
+# python-telegram-bot config
+bot_config = Defaults(parse_mode=ParseMode.MARKDOWN_V2, tzinfo=timezone)
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -57,9 +54,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "- Ketik /report untuk membuat laporan belajar\n",
     )
 
-    await update.message.reply_text(
-        safe_text,
-    )
+    await update.message.reply_text(safe_text)
 
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -71,26 +66,22 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     username = update.message.from_user.username
 
     end_date = date.today()
-    start_date = end_date - timedelta(days=7)  # set untuk 1 minggu
+    start_date = end_date - timedelta(days=7)
 
-    report_file_path = lead_agent.handle_repot(
-        user_id=user_id,
-        username=username,
-        start_date=start_date.isoformat(),
-        end_date=end_date.isoformat(),
+    report_file_path = lead_agent.handle_report(
+        user_id=user_id, username=username, start_date=start_date, end_date=end_date
     )
 
     with open(report_file_path, "rb") as report_pdf:
         await update.message.reply_document(
             document=report_pdf,
             caption=to_telegram_markdown(
-                f"Laporan belajar bahasa inggris dari {start_date.isoformat()} sampai {end_date.isoformat()}",
+                f"Laporan belajar bahasa inggris dari tanggal {start_date.isoformat()} - {end_date.isoformat()}"
             ),
         )
 
 
 async def _send_artifact(update: Update, artifact: Artifact):
-
     artifact_path = artifact.get("path")
     kind = artifact.get("kind")
     caption = artifact.get("caption")
@@ -133,9 +124,7 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     safe_text = to_telegram_markdown(response["text"])
 
-    await reply_text.edit_text(
-        safe_text,
-    )
+    await reply_text.edit_text(safe_text)
 
     if response["artifacts"]:
         # artifact_data = response["artifacts"].data[0].artifact
@@ -183,10 +172,14 @@ async def task_reminder(context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(chat_id=user_id, text=safe_text)
 
 
-def run():
-    # config timezone
+async def error_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.error(f"Error: {context.error}")
 
-    # inisialisasi python-telegram-bot
+    if update.effective_message:
+        await update.effective_message.reply_text(f"Terjadi error: {context.error}")
+
+
+def run():
     app = (
         Application.builder().token(env.TELEGRAM_BOT_TOKEN).defaults(bot_config).build()
     )
@@ -204,5 +197,7 @@ def run():
     )
     # app.job_queue.run_repeating(callback=task_reminder, interval=5, first=0)
 
-    print("Mentor Bahasa Inggris Virtual berhasil dijalankan...")
+    app.add_error_handler(error_handler)
+
+    print("Mentor Bahasa Inggris Virtual berhasil di jalankan...")
     app.run_polling(allowed_updates=Update.ALL_TYPES, timeout=30)
