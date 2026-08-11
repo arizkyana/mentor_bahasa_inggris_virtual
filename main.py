@@ -1,31 +1,49 @@
 import src.core.env as env
+import src.app as app_telegram_handler
 
 from loguru import logger
 from fastapi import FastAPI, Request, Response, status
 from contextlib import asynccontextmanager
+from src.repository.chat_repository import ChatRepository
 
 from telegram import Update
-from telegram.ext import Application, ApplicationBuilder, CommandHandler, ContextTypes
+from telegram.ext import (
+    Application,
+    CommandHandler,
+    MessageHandler,
+    filters,
+    Defaults,
+)
+from telegram.constants import ParseMode  # MarkdownV2
+from zoneinfo import ZoneInfo  # WIB - Asia/Jakarta
 
-bot_app = Application.builder().token(env.TELEGRAM_BOT_TOKEN).build()
+timezone = ZoneInfo("Asia/Jakarta")
+
+bot_config = Defaults(parse_mode=ParseMode.MARKDOWN_V2, tzinfo=timezone)
+bot_app = (
+    Application.builder().token(env.TELEGRAM_BOT_TOKEN).defaults(bot_config).build()
+)
+
+chat_repository = ChatRepository()
 
 
-async def start(update: Update, context: ContextTypes):
-    logger.info("masuk start")
-    await update.message.reply_text("Hello!, webhook is working here with FastAPI")
-
-
-bot_app.add_handler(CommandHandler("start", start))
+# register route handler
+bot_app.add_handler(CommandHandler("start", app_telegram_handler.start_command))
+bot_app.add_handler(CommandHandler("report", app_telegram_handler.report_command))
+bot_app.add_handler(
+    MessageHandler(filters.TEXT & ~filters.COMMAND, app_telegram_handler.handle_text)
+)
+bot_app.add_handler(MessageHandler(filters.VOICE, app_telegram_handler.handle_voice))
+bot_app.add_error_handler(app_telegram_handler.error_handler)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.debug(f"Telegram Bot Token: {env.TELEGRAM_BOT_TOKEN}")
+
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.bot.set_webhook(
-        url=f"{env.TELEGRAM_WEBHOOK_URL}",
-        secret_token="secret123",
+        url=f"{env.TELEGRAM_WEBHOOK_URL}", secret_token="secret123", connect_timeout=30
     )
     yield
     await bot_app.bot.delete_webhook()
@@ -39,9 +57,12 @@ app = FastAPI(lifespan=lifespan)
 # Telegram webhook
 @app.post(f"/webhook/{env.TELEGRAM_BOT_TOKEN}")
 async def telegram_webhook(request: Request):
-    logger.debug(request.headers.get("X-Telegram-Bot-Api-Secret-Token"))
-    # if request.headers.get("X-Telegram-Bot-Api-Secret-Token") != env.TELEGRAM_BOT_TOKEN:
-    #     return Response(status_code=status.HTTP_403_FORBIDDEN)
+    if (
+        request.headers.get("X-Telegram-Bot-Api-Secret-Token")
+        != env.TELEGRAM_SECRET_TOKEN
+    ):
+        return Response(status_code=status.HTTP_403_FORBIDDEN)
+
     try:
         req_body = await request.json()
 
@@ -49,7 +70,7 @@ async def telegram_webhook(request: Request):
         update = Update.de_json(req_body, bot_app.bot)
         await bot_app.process_update(update)
 
-        logger.info(f"telegram_webhook: {req_body}")
+        logger.info(req_body)
         return Response(status_code=status.HTTP_200_OK)
     except Exception as e:
         logger.error(f"Error processing update: {e}")
