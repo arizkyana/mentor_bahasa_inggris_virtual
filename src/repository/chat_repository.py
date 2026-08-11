@@ -15,12 +15,13 @@ class ChatRepository:
             {"user_id": user_id, "role": role, "message_text": message_text}
         ).execute()
 
-    def load_history_by_user_id(self, user_id: int):
+    def load_history_by_user_id(self, user_id: int, limit: int = 10):
         result = (
             self.supabase.table("chat_histories")
             .select("role", "message_text")
             .eq("user_id", user_id)
-            .order("created_at", desc=False)
+            .order("created_at", desc=False)  # ascending
+            .limit(limit)
             .execute()
         )
 
