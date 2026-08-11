@@ -24,7 +24,7 @@ async def lifespan(app: FastAPI):
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.bot.set_webhook(
-        url=f"{env.TELEGRAM_WEBHOOK_URL}/webhook/{env.TELEGRAM_BOT_TOKEN}",
+        url=f"{env.TELEGRAM_WEBHOOK_URL}",
         secret_token="secret123",
     )
     yield
