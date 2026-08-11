@@ -32,3 +32,7 @@ SUPABASE_URL = _required_env("SUPABASE_URL")
 SUPABASE_KEY = _required_env("SUPABASE_KEY")
 
 TELEGRAM_BOT_TOKEN = _required_env("TELEGRAM_BOT_TOKEN")
+TELEGRAM_WEBHOOK_URL = _required_env("TELEGRAM_WEBHOOK_URL")
+
+BOT_PORT = _required_env("BOT_PORT")
+BOT_HOST = _required_env("BOT_HOST")

@@ -1,4 +1,4 @@
-import src.app as app
+import src.app_webhook as app
 
 
 def main():
