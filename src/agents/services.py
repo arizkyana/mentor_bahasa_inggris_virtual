@@ -190,6 +190,7 @@ def listening_exercise(text: str):
 
     # 3. generate wave file
     _write_wave_file(audio_output_path, audio)
+    logger.debug(f"listening_exercise: {audio_output_path}")
 
     # 4. catat file audio ke channel / jalur artifacts
     artifacts.add(
