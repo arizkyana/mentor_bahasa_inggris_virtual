@@ -1,7 +1,7 @@
 name: Deploy to FastAPI Cloud
 on:
   push:
-    branches: [feat/file-handling-with-supabase-storage]
+    branches: [main-prod]
 jobs:
   deploy:
     runs-on: ubuntu-latest
