@@ -1,9 +1,11 @@
 import src.core.env as env
+import src.core.supabase as supabase
 import src.app as app_telegram_handler
 
 from loguru import logger
 from fastapi import FastAPI, Request, Response, status
 from contextlib import asynccontextmanager
+
 from src.repository.chat_repository import ChatRepository
 
 from telegram import Update
@@ -36,6 +38,8 @@ bot_app.add_handler(
 bot_app.add_handler(MessageHandler(filters.VOICE, app_telegram_handler.handle_voice))
 bot_app.add_error_handler(app_telegram_handler.error_handler)
 
+supabase_client = supabase.get_supabase_client()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -43,7 +47,9 @@ async def lifespan(app: FastAPI):
     await bot_app.initialize()
     await bot_app.start()
     await bot_app.bot.set_webhook(
-        url=f"{env.TELEGRAM_WEBHOOK_URL}", secret_token="secret123", connect_timeout=30
+        url=f"{env.TELEGRAM_WEBHOOK_URL}",
+        secret_token=env.TELEGRAM_SECRET_TOKEN,
+        connect_timeout=30,
     )
     yield
     await bot_app.bot.delete_webhook()
