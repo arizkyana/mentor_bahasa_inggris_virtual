@@ -12,3 +12,6 @@ wheels/
 .env
 output
 temp
+CLAUDE.local.md
+.claude/settings.local.json
+.claude/docs

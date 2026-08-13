@@ -2,11 +2,13 @@ import random
 import json
 import wave
 import time
+import io
 
 import src.core.env as env
 import src.core.llm as llm
 import src.core.prompts as prompts
 import src.core.artifacts as artifacts
+import src.core.supabase as supabase
 
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +25,7 @@ from src.core.schemas import (
 )
 
 gemini_client = llm.get_gemini_client()
-timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+supabase_client = supabase.get_supabase_client()
 
 
 def generate_exercise(
@@ -162,54 +164,70 @@ def _listening_generate_audio_script(generate_script: ListeningExerciseSchema):
                 return part.inline_data.data
 
 
-def _write_wave_file(
-    audio_output_path: Path,
+def _pcm_to_wave_bytes(
     pcm: bytes,
     channels: int = 1,
     rate: int = 24000,
     sample_width: int = 2,
 ):
-    with wave.open(str(audio_output_path), "wb") as wf:
+    """Bungkus PCM mentah dari Gemini TTS jadi WAV lengkap dengan header RIFF."""
+    audio_bytes = io.BytesIO()
+    with wave.open(audio_bytes, "wb") as wf:
         wf.setnchannels(channels)
         wf.setsampwidth(sample_width)
         wf.setframerate(rate)
         wf.writeframes(pcm)
+    return audio_bytes.getvalue()
 
 
 def listening_exercise(text: str):
 
-    env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    try:
+        timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 
-    audio_output_path = env.OUTPUT_DIR / f"listening-{timestamp}.wav"
+        env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 1. "model" untuk generate script percakapan dua orang
-    generate_script = _listening_generate_script(text=text)
+        audio_output_path = env.OUTPUT_DIR / f"listening-{timestamp}.wav"
 
-    # 2. "model" untuk generate audio berdasarkan `generate_script`
-    audio = _listening_generate_audio_script(generate_script=generate_script)
+        # 1. "model" untuk generate script percakapan dua orang
+        generate_script = _listening_generate_script(text=text)
 
-    # 3. generate wave file
-    _write_wave_file(audio_output_path, audio)
-    logger.debug(f"listening_exercise: {audio_output_path}")
+        # 2. "model" untuk generate audio berdasarkan `generate_script`
+        audio = _listening_generate_audio_script(generate_script=generate_script)
 
-    # 4. catat file audio ke channel / jalur artifacts
-    artifacts.add(
-        path=audio_output_path,
-        kind="audio",
-        caption="dengarkan audio latihan listening ini, lalu jawab pertanyaannya.",
-    )
+        # 3. generate wave file
+        audio_wave_bytes = _pcm_to_wave_bytes(audio)
+        logger.debug(f"Ukuran file WAV: {len(audio_wave_bytes)} bytes")
 
-    # 5. kembalikan daftar pertanyaan
-    questions_text = "\n".join(
-        f"- {question}" for question in generate_script.questions
-    )
+        result = supabase_client.storage.from_("artifacts").upload(
+            f"listening-{timestamp}.wav",
+            audio_wave_bytes,
+            {
+                "content-type": "audio/wav",
+            },
+        )
 
-    logger.info("success generate listening exercise")
+        # 4. catat file audio ke channel / jalur artifacts
+        artifacts.add(
+            path=result.path,
+            kind="audio",
+            caption="dengarkan audio latihan listening ini, lalu jawab pertanyaannya.",
+        )
 
-    return (
-        "Audio latihan listening sudah berhasil dibuat dan terlampir otomatis"
-        f"Pertanyaan: {questions_text}"
-    )
+        # 5. kembalikan daftar pertanyaan
+        questions_text = "\n".join(
+            f"- {question}" for question in generate_script.questions
+        )
+
+        logger.info("success generate listening exercise")
+
+        return (
+            "Audio latihan listening sudah berhasil dibuat dan terlampir otomatis"
+            f"Pertanyaan: {questions_text}"
+        )
+    except Exception as e:
+        logger.debug(e)
+        raise ValueError(e)
 
 
 def skill_type_classification(text: str):  # prompt dari user
@@ -312,6 +330,8 @@ def generate_report(
 ):
     """Membuat laporan belajar bahasa inggris dalam rentang waktu tertentu"""
 
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+
     model = env.GEMINI_MODEL
     system_instruction = prompts.load_instruction("agent-report")
     prompt = f"Buatkan laporan belajar bahasa inggris atas nama {username} dari tanggal {start_date} sampai {end_date} dengan me-analisis riwayat latihan berikut ini: \n{conversation_history}"
@@ -333,8 +353,20 @@ def generate_report(
 
     pdf = MarkdownPdf(toc_level=2)
     pdf.add_section(Section(report_content))
-    pdf.save(report_file_path)
+
+    pdf_bytes = io.BytesIO()
+
+    pdf.save_bytes(pdf_bytes)
+
+    pdf_file_bytes = pdf_bytes.getvalue()
+
+    # upload to supabase
+    result = supabase_client.storage.from_("artifacts").upload(
+        f"laporan-belajar-{timestamp}.pdf",
+        pdf_file_bytes,
+        {"content-type": "application/pdf"},
+    )
 
     logger.success("success generate report")
 
-    return str(report_file_path)
+    return result.path
