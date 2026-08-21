@@ -26,6 +26,7 @@ def run():
         print(f"[AI]: {response["text"]}")
 
         if response["artifacts"]:
-            artifacts_data = response["artifacts"].data
-            for item in artifacts_data:
-                logger.info(f"lokasi artifact: {item["artifact"]}")
+            logger.debug(response["artifacts"])
+            # artifacts_data = response["artifacts"].data
+            # for item in artifacts_data:
+            #     logger.info(f"lokasi artifact: {item["artifact"]}")

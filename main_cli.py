@@ -1,4 +1,4 @@
-import src.app as app
+import src.app_cli as app
 
 
 def main():
