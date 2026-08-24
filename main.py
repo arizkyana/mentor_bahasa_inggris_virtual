@@ -19,14 +19,14 @@ from telegram.ext import (
 from telegram.constants import ParseMode  # MarkdownV2
 from zoneinfo import ZoneInfo  # WIB - Asia/Jakarta
 
+from datetime import time
+
 timezone = ZoneInfo("Asia/Jakarta")
 
 bot_config = Defaults(parse_mode=ParseMode.MARKDOWN_V2, tzinfo=timezone)
 bot_app = (
     Application.builder().token(env.TELEGRAM_BOT_TOKEN).defaults(bot_config).build()
 )
-
-chat_repository = ChatRepository()
 
 
 # register route handler
@@ -38,6 +38,13 @@ bot_app.add_handler(
 bot_app.add_handler(MessageHandler(filters.VOICE, app_telegram_handler.handle_voice))
 bot_app.add_error_handler(app_telegram_handler.error_handler)
 
+# reminder
+target_time = time(hour=8, minute=0, second=0, tzinfo=timezone)
+bot_app.job_queue.run_daily(
+    callback=app_telegram_handler.task_reminder, time=target_time, name="task_reminder"
+)
+
+chat_repository = ChatRepository()
 supabase_client = supabase.get_supabase_client()
 
 
