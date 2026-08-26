@@ -47,12 +47,12 @@ class ChatRepository:
 
         return result
 
-    def save_artifact(self, user_id: int, artifact_path):
+    def save_artifact(self, user_id: int, artifact_path, message_text: str = "[audio]"):
         self.supabase.table("chat_histories").insert(
             {
                 "user_id": user_id,
                 "role": "model",
-                "message_text": "[audio]",
+                "message_text": message_text,
                 "artifact": str(artifact_path),
             }
         ).execute()
