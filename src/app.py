@@ -182,7 +182,7 @@ def run():
     app.add_handler(MessageHandler(filters.VOICE, handle_voice))
 
     # reminder
-    # app.job_queue.run_repeating(callback=task_reminder, interval=5, first=0)
+    app.job_queue.run_repeating(callback=task_reminder, interval=5, first=0)
 
     app.add_error_handler(error_handler)
 
