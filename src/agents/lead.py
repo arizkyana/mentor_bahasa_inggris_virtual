@@ -6,6 +6,7 @@ import src.core.artifacts as artifacts
 
 from src.repository.chat_repository import ChatRepository
 from google.genai import types
+from loguru import logger
 
 
 class LeadAgent:

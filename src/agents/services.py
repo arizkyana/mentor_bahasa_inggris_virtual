@@ -2,11 +2,13 @@ import random
 import json
 import wave
 import time
+import io
 
 import src.core.env as env
 import src.core.llm as llm
 import src.core.prompts as prompts
 import src.core.artifacts as artifacts
+import src.core.supabase as supabase
 
 from datetime import datetime
 from pathlib import Path
@@ -23,7 +25,9 @@ from src.core.schemas import (
 )
 
 gemini_client = llm.get_gemini_client()
-timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+
+
+supabase_client = supabase.get_supabase_client()
 
 
 def generate_exercise(
@@ -122,11 +126,17 @@ def _listening_generate_audio_script(generate_script: ListeningExerciseSchema):
     speaker_one = generate_script.speaker_one
     speaker_two = generate_script.speaker_two
 
-    prompt = f"Buatkan audio (text-to-speech) dari percakapan antara dua orang pada script berikut ini: \n{script}"
+    # ubah setiap item script (Pydantic) menjadi dictionary part Gemini TTS
+    # contoh: {"text": "...", "speech_metadata": {"speaker": "Joe", "style": "..."}}
+    parts = [line.model_dump() for line in script]
+
+    logger.debug(f"speaker_one: {speaker_one}")
+    logger.debug(f"speaker_two: {speaker_two}")
+    logger.debug(f"parts: {parts}")
 
     response = gemini_client.models.generate_content(
         model=model,
-        contents=prompt,
+        contents=[{"role": "user", "parts": parts}],
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
@@ -162,38 +172,58 @@ def _listening_generate_audio_script(generate_script: ListeningExerciseSchema):
                 return part.inline_data.data
 
 
-def _write_wave_file(
-    audio_output_path: Path,
+# refactor _write_wave_file menjadi _raw_audio_to_bytes
+# gunanya untuk mendapatkan konversi dari raw audio hasil generate gemini TTS (text-to-speech) ke dalam format WAV
+def _raw_audio_to_bytes(
     pcm: bytes,
     channels: int = 1,
     rate: int = 24000,
     sample_width: int = 2,
 ):
-    with wave.open(str(audio_output_path), "wb") as wf:
+    """Bungkus PCM mentah dari Gemini TTS jadi WAV lengkap dengan header RIFF."""
+    audio_bytes = io.BytesIO()
+    with wave.open(audio_bytes, "wb") as wf:
         wf.setnchannels(channels)
         wf.setsampwidth(sample_width)
         wf.setframerate(rate)
         wf.writeframes(pcm)
+    return audio_bytes.getvalue()
 
 
 def listening_exercise(text: str):
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 
-    env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    audio_output_path = env.OUTPUT_DIR / f"listening-{timestamp}.wav"
+    file_name = f"listening-{timestamp}.wav"
 
     # 1. "model" untuk generate script percakapan dua orang
     generate_script = _listening_generate_script(text=text)
+    logger.debug(f"script: {generate_script}")
 
-    # 2. "model" untuk generate audio berdasarkan `generate_script`
-    audio = _listening_generate_audio_script(generate_script=generate_script)
+    try:
+        # 2. "model" untuk generate audio berdasarkan `generate_script`
+        raw_audio = _listening_generate_audio_script(
+            generate_script=generate_script
+        )  # raw audio hasil generate gemini TTS
+
+    except Exception as e:
+        logger.error(e)
 
     # 3. generate wave file
-    _write_wave_file(audio_output_path, audio)
+    audio_wave_bytes = _raw_audio_to_bytes(raw_audio)
+    logger.debug(f"Ukuran file WAV: {len(audio_wave_bytes)} bytes")
+
+    # simpan ke supabase storage
+    result_upload = supabase_client.storage.from_("artifacts").upload(
+        path=file_name,
+        file=audio_wave_bytes,
+        file_options={"content-type": "audio/wav"},
+    )
+
+    logger.debug(f"result_upload.path: {result_upload.path}")
 
     # 4. catat file audio ke channel / jalur artifacts
     artifacts.add(
-        path=audio_output_path,
+        path=result_upload.path,
         kind="audio",
         caption="dengarkan audio latihan listening ini, lalu jawab pertanyaannya.",
     )
@@ -306,6 +336,7 @@ def generate_report(
     end_date: str,
 ):
     """Membuat laporan belajar bahasa inggris dalam rentang waktu tertentu"""
+    timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
 
     model = env.GEMINI_MODEL
     system_instruction = prompts.load_instruction("agent-report")
@@ -323,11 +354,23 @@ def generate_report(
     data = LearningReportSchema.model_validate(json.loads(response.text))
     report_content = data.markdown_content
 
-    env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    report_file_path = env.OUTPUT_DIR / f"laporan-belajar-{timestamp}.pdf"
+    report_file_path = f"laporan-belajar-{timestamp}.pdf"
+
+    pdf_bytes = io.BytesIO()
 
     pdf = MarkdownPdf(toc_level=2)
     pdf.add_section(Section(report_content))
-    pdf.save(report_file_path)
+    pdf.save_bytes(pdf_bytes)
 
-    return str(report_file_path)
+    pdf_file_bytes = pdf_bytes.getvalue()
+
+    # upload ke supabase
+    result_upload = supabase_client.storage.from_("artifacts").upload(
+        path=report_file_path,
+        file=pdf_file_bytes,
+        file_options={"content-type": "application/pdf"},
+    )
+
+    logger.success(f"berhasil membuat laporan belajar: {result_upload.path}")
+
+    return result_upload.path

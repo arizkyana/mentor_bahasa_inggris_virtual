@@ -2,12 +2,25 @@ from pydantic import BaseModel, Field
 from typing import Literal
 
 
+class ScriptSpeechMetadata(BaseModel):
+    speaker: str = Field(..., description="Nama dari salah satu speaker")
+    style: str = Field(
+        ...,
+        description="Gaya bicara dari salah satu speaker. Untuk pria isi dengan: calm and relaxed. Untuk wanita isi dengan: cheerful and friendly",
+    )
+
+
+class ListeningExerciseScriptSchema(BaseModel):
+    text: str = Field(..., description="kalimat yang disampaikan oleh speaker")
+    speech_metadata: ScriptSpeechMetadata
+
+
 class ListeningExerciseSchema(BaseModel):
     speaker_one: str = Field(..., description="Nama pembicara pertama, misalnya: 'Joe'")
     speaker_two: str = Field(..., description="Nama pembicara kedua, misalnya: 'Jane'")
-    script: str = Field(
+    script: list[ListeningExerciseScriptSchema] = Field(
         ...,
-        description="Dialog yang dibacakan oleh TTS (Text-to-speech), format: 'Joe: ...\\nJane:...' bergantian",
+        description="Dialog yang dibacakan oleh TTS (Text-to-speech)",
     )
     questions: list[str] = Field(
         ...,
