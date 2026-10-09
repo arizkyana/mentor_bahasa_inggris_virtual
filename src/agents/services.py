@@ -2,11 +2,13 @@ import random
 import json
 import wave
 import time
+import io
 
 import src.core.env as env
 import src.core.llm as llm
 import src.core.prompts as prompts
 import src.core.artifacts as artifacts
+import src.core.supabase as supabase
 
 from datetime import datetime
 from pathlib import Path
@@ -24,6 +26,8 @@ from src.core.schemas import (
 
 gemini_client = llm.get_gemini_client()
 timestamp = datetime.now().strftime("%Y%m%d-%H%M%S-%f")
+
+supabase_client = supabase.get_supabase_client()
 
 
 def generate_exercise(
@@ -122,11 +126,14 @@ def _listening_generate_audio_script(generate_script: ListeningExerciseSchema):
     speaker_one = generate_script.speaker_one
     speaker_two = generate_script.speaker_two
 
-    prompt = f"Buatkan audio (text-to-speech) dari percakapan antara dua orang pada script berikut ini: \n{script}"
+    # ubah setiap item (Pydantic) menjadi dictionary part yang dikenali oleh gemini model
+    parts = [
+        line.model_dump() for line in script
+    ]  # list of dictionary yang dibutuhkan oleh model gemini, gemini-3.8-flash-tts
 
     response = gemini_client.models.generate_content(
         model=model,
-        contents=prompt,
+        contents=[{"role": "user", "parts": parts}],
         config=types.GenerateContentConfig(
             response_modalities=["AUDIO"],
             speech_config=types.SpeechConfig(
@@ -162,38 +169,46 @@ def _listening_generate_audio_script(generate_script: ListeningExerciseSchema):
                 return part.inline_data.data
 
 
-def _write_wave_file(
-    audio_output_path: Path,
+# raw audio adalah format PCM hasil generate audio dari gemini 3.8 flash tts
+def _raw_audio_to_bytes(
     pcm: bytes,
     channels: int = 1,
     rate: int = 24000,
     sample_width: int = 2,
 ):
-    with wave.open(str(audio_output_path), "wb") as wf:
+    audio_bytes = io.BytesIO()
+    with wave.open(audio_bytes, "wb") as wf:
         wf.setnchannels(channels)
         wf.setsampwidth(sample_width)
         wf.setframerate(rate)
         wf.writeframes(pcm)
 
+    return audio_bytes.getvalue()
+
 
 def listening_exercise(text: str):
 
-    env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-
-    audio_output_path = env.OUTPUT_DIR / f"listening-{timestamp}.wav"
+    file_name = f"listening-{timestamp}.wav"
 
     # 1. "model" untuk generate script percakapan dua orang
     generate_script = _listening_generate_script(text=text)
 
     # 2. "model" untuk generate audio berdasarkan `generate_script`
-    audio = _listening_generate_audio_script(generate_script=generate_script)
+    raw_audio = _listening_generate_audio_script(generate_script=generate_script)
 
     # 3. generate wave file
-    _write_wave_file(audio_output_path, audio)
+    audio_wave_bytes = _raw_audio_to_bytes(raw_audio)
+
+    # upload ke supabase storage
+    result_upload = supabase_client.storage.from_("artifacts").upload(
+        path=file_name,
+        file=audio_wave_bytes,
+        file_options={"content-type": "audio/wav"},
+    )
 
     # 4. catat file audio ke channel / jalur artifacts
     artifacts.add(
-        path=audio_output_path,
+        path=result_upload.path,
         kind="audio",
         caption="dengarkan audio latihan listening ini, lalu jawab pertanyaannya.",
     )
