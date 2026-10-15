@@ -75,13 +75,19 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         user_id=user_id, username=username, start_date=start_date, end_date=end_date
     )
 
-    with open(report_file_path, "rb") as report_pdf:
-        await update.message.reply_document(
-            document=report_pdf,
-            caption=to_telegram_markdown(
-                f"Laporan belajar bahasa inggris dari tanggal {start_date.isoformat()} - {end_date.isoformat()}"
-            ),
-        )
+    # ambil (download) laporan belajar dari supabase storage
+    result_download = supabase_client.storage.from_("artifacts").download(
+        report_file_path
+    )
+
+    report_file_pdf = InputFile(result_download, filename="laporan-belajar.pdf")
+
+    await update.message.reply_document(
+        document=report_file_pdf,
+        caption=to_telegram_markdown(
+            f"Laporan belajar bahasa inggris dari tanggal {start_date.isoformat()} - {end_date.isoformat()}"
+        ),
+    )
 
 
 async def _send_artifact(update: Update, artifact: Artifact):

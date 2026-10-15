@@ -338,11 +338,23 @@ def generate_report(
     data = LearningReportSchema.model_validate(json.loads(response.text))
     report_content = data.markdown_content
 
-    env.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    report_file_path = env.OUTPUT_DIR / f"laporan-belajar-{timestamp}.pdf"
+    report_file_path = f"laporan-belajar-{timestamp}.pdf"
+
+    pdf_bytes = io.BytesIO()
 
     pdf = MarkdownPdf(toc_level=2)
     pdf.add_section(Section(report_content))
-    pdf.save(report_file_path)
+    pdf.save_bytes(pdf_bytes)
 
-    return str(report_file_path)
+    pdf_file_bytes = pdf_bytes.getvalue()
+
+    # upload ke supabase storage
+    result_upload = supabase_client.storage.from_("artifacts").upload(
+        path=report_file_path,
+        file=pdf_file_bytes,
+        file_options={"content-type": "application/json"},
+    )
+
+    logger.success(f"berhasil membuat laporan: {result_upload.path}")
+
+    return result_upload.path
