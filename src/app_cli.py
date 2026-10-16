@@ -1,7 +1,7 @@
 from src.agents.lead import LeadAgent
 from loguru import logger
 
-lead_agent = LeadAgent()
+lead_agent = LeadAgent(user_id=101010)
 
 
 def run():
