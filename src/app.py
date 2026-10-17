@@ -1,11 +1,12 @@
 import src.core.env as env
+import src.core.supabase as supabase
 
 import os
 import random
 
 from zoneinfo import ZoneInfo  # WIB - Asia/Jakarta
 
-from telegram import Update
+from telegram import Update, InputFile
 from telegram.error import BadRequest
 from telegram.ext import (
     ContextTypes,
@@ -28,10 +29,12 @@ from src.core.artifacts import Artifact
 timezone = ZoneInfo("Asia/Jakarta")
 
 chat_repository = ChatRepository()
-lead_agent = LeadAgent()
+
 
 # python-telegram-bot config
 bot_config = Defaults(parse_mode=ParseMode.MARKDOWN_V2, tzinfo=timezone)
+
+supabase_client = supabase.get_supabase_client()
 
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -58,6 +61,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
     await update.message.reply_text(
         to_telegram_markdown("laporan sedang kami buat, mohon tunggu...")
     )
@@ -65,20 +69,28 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     username = update.message.from_user.username
 
+    lead_agent = LeadAgent(user_id=user_id)
+
     end_date = date.today()
     start_date = end_date - timedelta(days=7)
 
     report_file_path = lead_agent.handle_report(
-        user_id=user_id, username=username, start_date=start_date, end_date=end_date
+        username=username, start_date=start_date, end_date=end_date
     )
 
-    with open(report_file_path, "rb") as report_pdf:
-        await update.message.reply_document(
-            document=report_pdf,
-            caption=to_telegram_markdown(
-                f"Laporan belajar bahasa inggris dari tanggal {start_date.isoformat()} - {end_date.isoformat()}"
-            ),
-        )
+    # ambil (download) laporan belajar dari supabase storage
+    result_download = supabase_client.storage.from_("artifacts").download(
+        report_file_path
+    )
+
+    report_file_pdf = InputFile(result_download, filename="laporan-belajar.pdf")
+
+    await update.message.reply_document(
+        document=report_file_pdf,
+        caption=to_telegram_markdown(
+            f"Laporan belajar bahasa inggris dari tanggal {start_date.isoformat()} - {end_date.isoformat()}"
+        ),
+    )
 
 
 async def _send_artifact(update: Update, artifact: Artifact):
@@ -88,25 +100,16 @@ async def _send_artifact(update: Update, artifact: Artifact):
 
     safe_caption_text = to_telegram_markdown(caption)
 
-    if not os.path.exists(artifact_path):
-        logger.warning(f"artifact tidak ditemukan")
+    result_download = supabase_client.storage.from_("artifacts").download(artifact_path)
 
-    with open(artifact_path, "rb") as artifact_file:
-        if kind == "audio":
-            await update.message.reply_audio(
-                audio=artifact_file, caption=safe_caption_text
-            )
-        elif kind == "video":
-            await update.message.reply_video(
-                video=artifact_file, caption=safe_caption_text
-            )
-        else:
-            await update.message.reply_document(
-                document=artifact_file, caption=safe_caption_text
-            )
+    artifact_file = InputFile(result_download, filename=artifact_path)
 
-    os.remove(artifact_path)
-    logger.info(f"success remove file {artifact_path}")
+    if kind == "audio":
+        await update.message.reply_audio(audio=artifact_file, caption=safe_caption_text)
+    else:
+        await update.message.reply_document(
+            document=artifact_file, caption=safe_caption_text
+        )
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -118,9 +121,9 @@ async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.message.from_user.id
     user_message = update.message.text
 
-    response = lead_agent.handle_send_message(
-        user_id=user_id, message_text=user_message
-    )
+    lead_agent = LeadAgent(user_id=user_id)
+
+    response = lead_agent.handle_send_message(message_text=user_message)
 
     safe_text = to_telegram_markdown(response["text"])
 
@@ -140,14 +143,15 @@ async def handle_voice(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     user_id = update.message.from_user.id
 
-    # download file audio dari telegram
+    lead_agent = LeadAgent(user_id=user_id)
+
     env.TEMP.mkdir(parents=True, exist_ok=True)
     voice_file = await context.bot.get_file(update.message.voice.file_id)
     voice_file_path = env.TEMP / f"{update.message.voice.file_id}.ogg"
     await voice_file.download_to_drive(str(voice_file_path))
 
     evaluation_speaking_result = lead_agent.handle_send_voice(
-        user_id=user_id, voice_file_path=voice_file_path
+        voice_file_path=voice_file_path
     )
 
     safe_text = to_telegram_markdown(evaluation_speaking_result)

@@ -7,12 +7,17 @@ import src.core.artifacts as artifacts
 
 from src.repository.chat_repository import ChatRepository
 from google.genai import types
+from loguru import logger
+
+MAX_HISTORY_ITEMS = 10
 
 from loguru import logger
 
 
 class LeadAgent:
-    def __init__(self):
+    def __init__(self, user_id):
+        self.user_id = user_id
+
         # gemini
         self.gemini_client = llm.get_gemini_client()
 
@@ -29,6 +34,10 @@ class LeadAgent:
         # lead agent instruction
         self.lead_agent_instruction = prompts.load_instruction("agent-lead")
 
+        self.chat_model = None
+
+        self.history = []
+
     # pythonic way: nama function dengan awalan _ akan di panggi secara private
     def _load_history(self, user_id: int):
         """Mengambil history chat dari supabase kemudian diubah ke format Gemini"""
@@ -43,24 +52,40 @@ class LeadAgent:
             for row in response.data
         ]
 
-    def handle_send_message(self, user_id: int, message_text: str):
+    def start_or_resume(self, init_history=None):
+        if init_history:
+            self.history = init_history
 
-        self.chat_repository.save_message(
-            user_id=user_id, role="user", message_text=message_text
-        )
+        if len(self.history) > MAX_HISTORY_ITEMS:
+            self.history = self.history[-MAX_HISTORY_ITEMS:]
 
-        contents = self._load_history(user_id=user_id)
-
-        # siapkan keranjang artifact untuk setiap request
-        artifacts.start()
-
-        response = self.gemini_client.models.generate_content(
+        self.chat_model = self.gemini_client.chats.create(
             model=env.GEMINI_MODEL,
             config=types.GenerateContentConfig(
                 system_instruction=self.lead_agent_instruction, tools=self.tools
             ),
-            contents=contents,
+            history=self.history,
         )
+
+    def handle_send_message(self, message_text: str):
+
+        if not self.chat_model:
+            self.start_or_resume(init_history=self._load_history(user_id=self.user_id))
+
+        self.chat_repository.save_message(
+            user_id=self.user_id, role="user", message_text=message_text
+        )
+
+        response_token_count = self.gemini_client.models.count_tokens(
+            model=env.GEMINI_MODEL, contents=message_text
+        )
+
+        logger.debug(f"total tokens: {response_token_count.total_tokens}")
+
+        # siapkan keranjang artifact untuk setiap request
+        artifacts.start()
+
+        response = self.chat_model.send_message(message_text)
 
         answer = response.text
         artifacts_data = artifacts.collect()
@@ -68,20 +93,18 @@ class LeadAgent:
         # handle artifact
         for item in artifacts_data:
             self.chat_repository.save_artifact(
-                user_id=user_id, artifact_path=item["path"]
+                user_id=self.user_id, artifact_path=item["path"]
             )
 
         self.chat_repository.save_message(
-            role="model", user_id=user_id, message_text=answer
+            role="model", user_id=self.user_id, message_text=answer
         )
 
         return {"text": answer, "artifacts": artifacts_data}
 
-    def handle_send_voice(self, user_id: int, voice_file_path: str):
-        logger.info("[handle_send_voice]")
-
+    def handle_send_voice(self, voice_file_path: str):
         self.chat_repository.save_message(
-            user_id=user_id, role="user", message_text="[voice note]"
+            user_id=self.user_id, role="user", message_text="[voice note]"
         )
 
         evaluation_speaking_result = services.evaluate_speaking(
@@ -89,22 +112,21 @@ class LeadAgent:
         )
 
         self.chat_repository.save_message(
-            user_id=user_id, role="model", message_text=evaluation_speaking_result
+            user_id=self.user_id, role="model", message_text=evaluation_speaking_result
         )
 
         logger.info("success evaluate speaking")
 
         return evaluation_speaking_result
 
-    def handle_repot(self, user_id: int, username: str, start_date: str, end_date: str):
-        logger.info("[handle_report]")
+    def handle_report(self, username: str, start_date: str, end_date: str):
         self.chat_repository.save_message(
-            user_id=user_id,
+            user_id=self.user_id,
             role="user",
             message_text=f"[generate learning report: {start_date} - {end_date}]",
         )
 
-        history = self._load_history(user_id=user_id)
+        history = self._load_history(user_id=self.user_id)
 
         report_file_path = services.generate_report(
             conversation_history=history,
@@ -114,7 +136,7 @@ class LeadAgent:
         )
 
         self.chat_repository.save_message(
-            user_id=user_id,
+            user_id=self.user_id,
             role="model",
             message_text=f"[generate learning report: {start_date} - {end_date} sudah selesai dicetak]",
         )
