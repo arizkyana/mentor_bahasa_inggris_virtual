@@ -1,7 +1,7 @@
 # Mentor Bahasa Inggris Virtual
 
 Sebuah aplikasi Telegram Bot yang dibuat dengan Bahasa Pemrograman Python dan menerapkan Agentic AI.
-Digunakan sebagai materi belajar tentang pengembangan aplikasi yang ditenagai oleh LLM dan AI Agents
+Repository ini digunakan sebagai materi belajar tentang pengembangan aplikasi yang ditenagai oleh LLM dan AI Agents
 
 Akses kelas di:
 
