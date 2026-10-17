@@ -62,11 +62,14 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
+    user_id = update.message.from_user.id
+
+    lead_agent = LeadAgent(user_id=user_id)
+
     await update.message.reply_text(
         to_telegram_markdown("laporan sedang kami buat, mohon tunggu...")
     )
 
-    user_id = update.message.from_user.id
     username = update.message.from_user.username
 
     lead_agent = LeadAgent(user_id=user_id)
@@ -113,14 +116,16 @@ async def _send_artifact(update: Update, artifact: Artifact):
 
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
+
+    user_id = update.message.from_user.id
+
+    lead_agent = LeadAgent(user_id=user_id)
+
     reply_text = await update.message.reply_text(
         to_telegram_markdown("mentor sedang menyiapkan jawaban...")
     )
 
-    user_id = update.message.from_user.id
     user_message = update.message.text
-
-    lead_agent = LeadAgent(user_id=user_id)
 
     response = lead_agent.handle_send_message(message_text=user_message)
 
