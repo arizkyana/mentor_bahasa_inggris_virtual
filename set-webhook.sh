@@ -1,2 +1,10 @@
-curl -X POST "https://api.telegram.org/bot8950716355:AAFsNVigf1JDg4nv1IGVnLqNAQwUFH6MlVc/setWebhook?secret_token=secret123" \
--d "url=https://557a-2402-8780-106f-812b-940b-5627-d11a-6196.ngrok-free.app/webhook"
+#!/usr/bin/env bash
+# Daftarkan webhook Telegram memakai nilai dari file .env
+set -euo pipefail
+
+# baca .env yang berada satu folder dengan script ini
+source "$(dirname "$0")/.env"
+
+curl -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -d "url=${TELEGRAM_WEBHOOK_URL}" \
+  -d "secret_token=${TELEGRAM_SECRET_TOKEN}"
