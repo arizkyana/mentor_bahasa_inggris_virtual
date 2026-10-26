@@ -12,3 +12,5 @@ wheels/
 .env
 output
 temp
+
+.claude/
