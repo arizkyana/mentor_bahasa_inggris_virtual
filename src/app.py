@@ -86,7 +86,7 @@ async def report_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         report_file_path
     )
 
-    report_file_pdf = InputFile(result_download, filename="laporan-belajar.pdf")
+    report_file_pdf = InputFile(result_download, filename=report_file_path)
 
     await update.message.reply_document(
         document=report_file_pdf,

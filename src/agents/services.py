@@ -3,6 +3,7 @@ import json
 import wave
 import time
 import io
+import uuid
 
 import src.core.env as env
 import src.core.llm as llm
@@ -342,11 +343,11 @@ def generate_report(
     data = LearningReportSchema.model_validate(json.loads(response.text))
     report_content = data.markdown_content
 
-    report_file_path = f"laporan-belajar-{timestamp}.pdf"
+    report_file_path = f"laporan-belajar-{timestamp}-{uuid.uuid4().hex}.pdf"
 
     pdf_bytes = io.BytesIO()
 
-    pdf = MarkdownPdf(toc_level=2)
+    pdf = MarkdownPdf(toc_level=2, mode="js-default")
     pdf.add_section(Section(report_content))
     pdf.save_bytes(pdf_bytes)
 
@@ -361,4 +362,4 @@ def generate_report(
 
     logger.success(f"berhasil membuat laporan: {result_upload.path}")
 
-    return result_upload.path
+    return report_file_path
